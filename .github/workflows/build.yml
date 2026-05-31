@@ -1,0 +1,51 @@
+name: build
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - "**/*.md"
+      - "LICENSE"
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-windows-x64:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure CMake
+        shell: pwsh
+        run: |
+          if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
+            choco install cmake --no-progress -y
+            "C:\Program Files\CMake\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+          }
+
+      - name: Download OBS Studio (portable — provides obs.dll to link against)
+        shell: pwsh
+        run: |
+          $ver = "32.1.2"
+          $url = "https://github.com/obsproject/obs-studio/releases/download/$ver/OBS-Studio-$ver-Windows.zip"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\obs.zip"
+          Expand-Archive -Path "$env:RUNNER_TEMP\obs.zip" -DestinationPath "$env:RUNNER_TEMP\obs" -Force
+          if (-not (Test-Path "$env:RUNNER_TEMP\obs\bin\64bit\obs.dll")) { throw "obs.dll not found in OBS portable zip" }
+          "OBS_ROOT=$env:RUNNER_TEMP\obs" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build
+        shell: pwsh
+        run: ./build.ps1 -ObsRoot "$env:OBS_ROOT"
+
+      - name: Package
+        shell: pwsh
+        run: ./package.ps1
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: obs-win-game-auto-capture-${{ github.sha }}-x64
+          path: dist/*
+          if-no-files-found: error

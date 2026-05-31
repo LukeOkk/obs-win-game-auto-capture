@@ -29,7 +29,7 @@ jobs:
         shell: pwsh
         run: |
           $ver = "32.1.2"
-          $url = "https://github.com/obsproject/obs-studio/releases/download/$ver/OBS-Studio-$ver-Windows.zip"
+          $url = "https://github.com/obsproject/obs-studio/releases/download/$ver/OBS-Studio-$ver-Windows-x64.zip"
           Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\obs.zip"
           Expand-Archive -Path "$env:RUNNER_TEMP\obs.zip" -DestinationPath "$env:RUNNER_TEMP\obs" -Force
           if (-not (Test-Path "$env:RUNNER_TEMP\obs\bin\64bit\obs.dll")) { throw "obs.dll not found in OBS portable zip" }

@@ -91,21 +91,39 @@ static com_ptr<T> dxgi_interface_from(wf::IInspectable const &object) {
 // --------------------------------------------------------------------------
 
 #if HAVE_PROCESS_LOOPBACK
-// Minimal completion handler for ActivateAudioInterfaceAsync.
-class ActivateHandler : public IActivateAudioInterfaceCompletionHandler {
+// Completion handler for ActivateAudioInterfaceAsync.
+//
+// IMPORTANT: the handler MUST be agile / free-threaded-marshalable, otherwise
+// ActivateAudioInterfaceAsync fails with E_ILLEGAL_METHOD_CALL (0x8000000E).
+// We implement IAgileObject and aggregate the free-threaded marshaler so we
+// answer IMarshal too — this is what WRL's FtmBase does for the same purpose.
+class ActivateHandler : public IActivateAudioInterfaceCompletionHandler,
+                        public IAgileObject {
 public:
-    explicit ActivateHandler(HANDLE done) : m_done(done) {}
+    explicit ActivateHandler(HANDLE done) : m_done(done) {
+        CoCreateFreeThreadedMarshaler(
+            static_cast<IActivateAudioInterfaceCompletionHandler *>(this), m_ftm.put());
+    }
 
     HRESULT activate_result = E_FAIL;
     com_ptr<IAudioClient> client;
 
     // IUnknown
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void **ppv) override {
+        if (!ppv) return E_POINTER;
         if (riid == __uuidof(IUnknown) ||
             riid == __uuidof(IActivateAudioInterfaceCompletionHandler)) {
             *ppv = static_cast<IActivateAudioInterfaceCompletionHandler *>(this);
             AddRef();
             return S_OK;
+        }
+        if (riid == __uuidof(IAgileObject)) {
+            *ppv = static_cast<IAgileObject *>(this);
+            AddRef();
+            return S_OK;
+        }
+        if (riid == __uuidof(IMarshal) && m_ftm) {
+            return m_ftm->QueryInterface(riid, ppv);
         }
         *ppv = nullptr;
         return E_NOINTERFACE;
@@ -132,6 +150,7 @@ public:
 private:
     LONG m_ref = 1;
     HANDLE m_done;
+    com_ptr<IUnknown> m_ftm;  // free-threaded marshaler (agility)
 };
 #endif  // HAVE_PROCESS_LOOPBACK
 

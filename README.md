@@ -69,6 +69,11 @@ In the source's properties:
 - **Include cursor** (default off)
 - **Manual whitelist** — pick a running app from the dropdown and click *Add*.
 
+> **Multiple sources:** you can add the source more than once and each instance
+> captures independently. If two instances capture the *same* game, enable
+> **Capture game audio** on only **one** of them — otherwise the game's audio is
+> summed twice in the mix. The toggle applies instantly (no restart).
+
 ## Requirements
 
 - Windows 10 1903+ (build 18362) for capture. Game-audio loopback needs

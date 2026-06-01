@@ -269,6 +269,8 @@ public:
         m_source = nullptr;
     }
 
+    bool running() const { return m_running.load(); }
+
 private:
 #if HAVE_PROCESS_LOOPBACK
     void capture_loop() {
@@ -357,8 +359,28 @@ struct GameCapture::Impl {
 
     HWND hwnd = nullptr;
     bool bound = false;
+    DWORD targetPid = 0;
 
     WasapiLoopback audio;
+
+    // Apply settings live. A change to capture_audio starts/stops the loopback
+    // immediately (no rebind needed), so a source can be muted/unmuted on the
+    // fly — handy when two sources capture the same game and you only want one
+    // to carry audio (otherwise the game's audio sums twice in the mix).
+    void update(const capture_settings &cs) {
+        settings = cs;
+        if (bound && targetPid) {
+            if (cs.capture_audio && !audio.running()) {
+                if (audio.start(targetPid, source))
+                    PLUGIN_LOG(LOG_INFO, "audio loopback started (live)");
+                else
+                    PLUGIN_LOG(LOG_INFO, "audio loopback unavailable (live) — video only");
+            } else if (!cs.capture_audio && audio.running()) {
+                audio.stop();
+                PLUGIN_LOG(LOG_INFO, "audio loopback stopped (capture_audio off)");
+            }
+        }
+    }
 
     bool ensure_device() {
         if (device) return true;
@@ -508,6 +530,7 @@ struct GameCapture::Impl {
 
         hwnd = h;
         bound = true;
+        targetPid = pid;
         PLUGIN_LOG(LOG_INFO, "capturing window (pid=%lu, exe=%s)", pid,
                    narrow(exe_name).c_str());
 
@@ -542,6 +565,7 @@ struct GameCapture::Impl {
         }
         hwnd = nullptr;
         bound = false;
+        targetPid = 0;
     }
 };
 
@@ -557,7 +581,7 @@ GameCapture::~GameCapture() {
     if (p_) p_->teardown();
 }
 
-void GameCapture::update(const capture_settings &cs) { p_->settings = cs; }
+void GameCapture::update(const capture_settings &cs) { p_->update(cs); }
 
 bool GameCapture::bind(HWND hwnd, DWORD pid, const std::wstring &exe_name) {
     return p_->bind(hwnd, pid, exe_name);

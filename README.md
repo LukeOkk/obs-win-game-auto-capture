@@ -109,6 +109,19 @@ To produce a distributable zip (`dist\obs-win-game-auto-capture-<ver>-x64.zip`):
   the known list, or whitelisted) to be detected. If a game isn't detected, open
   it once with Game Bar enabled, or add it to the whitelist.
 
+## Troubleshooting
+
+**No game audio in the stream/recording?** OBS only mixes a source's audio when
+that source is **active**, i.e. it's in the scene you're currently streaming. If
+your streamed scene contains one instance of this source but the audio actually
+comes from another instance in a *different* scene, you'll see video but hear
+nothing. Make sure the instance in your **active/streamed scene** has **Capture
+game audio** enabled (and keep it enabled on only one instance — see above).
+
+Also check the source's **Advanced Audio Properties**: it should not be muted,
+and **Audio Monitoring** = *Monitor Off* still sends audio to the stream/
+recording (it just isn't played back to your headphones).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

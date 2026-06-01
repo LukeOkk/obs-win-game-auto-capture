@@ -247,6 +247,7 @@ public:
             return false;
         }
 
+        m_ts_base = 0;  // re-anchor the audio clock for this session
         m_running = true;
         m_thread = std::thread(&WasapiLoopback::capture_loop, this);
         return true;
@@ -303,7 +304,15 @@ private:
                     a.speakers = (m_format.nChannels >= 2) ? SPEAKERS_STEREO : SPEAKERS_MONO;
                     a.format = AUDIO_FORMAT_FLOAT;  // interleaved float32
                     a.samples_per_sec = m_format.nSamplesPerSec;
-                    a.timestamp = os_gettime_ns();
+                    // Monotonic, correctly-spaced timestamps anchored at the
+                    // first packet — avoids bursts sharing a timestamp and keeps
+                    // the audio clock smooth for OBS.
+                    if (m_ts_base == 0) { m_ts_base = os_gettime_ns(); m_ts_samples = 0; }
+                    uint32_t sr = a.samples_per_sec ? a.samples_per_sec : 48000;
+                    a.timestamp = m_ts_base
+                        + (m_ts_samples / sr) * 1000000000ULL
+                        + ((m_ts_samples % sr) * 1000000000ULL) / sr;
+                    m_ts_samples += frames;
                     obs_source_output_audio(m_source, &a);
 
                     if (!logged_first) {
@@ -326,6 +335,8 @@ private:
     com_ptr<IAudioCaptureClient> m_capture;
     WAVEFORMATEX m_format{};
     std::vector<float> m_silence;
+    uint64_t m_ts_base = 0;     // os_gettime_ns anchor for the audio clock
+    uint64_t m_ts_samples = 0;  // frames delivered since the anchor
     std::atomic<bool> m_running{false};
     std::thread m_thread;
     HANDLE m_event = nullptr;

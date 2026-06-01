@@ -187,6 +187,11 @@ static void *gas_create(obs_data_t *settings, obs_source_t *source) {
     d->capture = new GameCapture(source);
     d->wake = CreateEventW(nullptr, FALSE, FALSE, nullptr);
 
+    // Video (WGC) and audio (WASAPI) come from independent clocks, so don't let
+    // OBS gate the audio on A/V sync with the video timestamps — decouple it so
+    // captured game audio always reaches the mixer/stream.
+    obs_source_set_async_decoupled(source, true);
+
     gas_update(d, settings);
 
     d->running = true;
